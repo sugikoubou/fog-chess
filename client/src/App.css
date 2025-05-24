@@ -199,11 +199,17 @@ button:focus-visible {
 }
 
 /* client/src/App.css など */
-.foggy-square {
-  background-color: #505050 !important; /* 暗めのグレー、必要に応じて調整 */
-  /* filter: blur(1px); */ /* ぼかし効果も面白いかも */
-}
-
 .foggy-square .piece {
   display: none !important; /* 霧の中の駒は完全に非表示 */
+}
+
+@keyframes subtleFogAnimation {
+  0% { opacity: 0.8; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.02); }
+  100% { opacity: 0.8; transform: scale(1); }
+}
+
+.foggy-square::before { /* アイデアAまたはCの疑似要素を使う場合 */
+  /* ... existing styles ... */
+  animation: subtleFogAnimation 15s infinite ease-in-out;
 }

@@ -220,15 +220,6 @@ function App() {
       <h1>Fog Chess</h1>
       <p>Status: {isConnected ? 'Connected' : 'Disconnected'}</p>
 
-      <div style={{ border: '1px solid red', margin: '10px', padding: '10px', backgroundColor: '#ffe0e0' }}>
-        <p><strong>Debug Info (Client State):</strong></p>
-        <p>Player Color: {playerColor || 'Not assigned'}</p>
-        <p>Room ID: {room || 'Not in a room'}</p>
-        <p>Is Connected: {isConnected ? 'Yes' : 'No'}</p>
-        <p>Current Turn: {currentPlayer}</p>
-        <p>Game Status: {gameStatus}</p>
-        <p>Visible Squares Count: {visibleSquares.size}</p>
-      </div>
 
       {/* マッチングボタンの表示ロジック */}
       {!room && !playerColor && ( // まだ色もルームも割り当てられていない場合
