@@ -66,3 +66,121 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+/* client/src/App.css などに追加 */
+.piece {
+  font-size: 2em; /* 例: マスのサイズに合わせて調整 */
+  cursor: pointer;
+  user-select: none;
+}
+/* 必要であれば色も指定 */
+/* .piece-white { color: #f0d9b5; } */
+/* .piece-black { color: #b58863; } */
+
+/* client/src/App.css などに追加 */
+.square {
+  width: 60px; /* 例 */
+  height: 60px; /* 例 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.square-light {
+  background-color: #f0d9b5;
+}
+
+.square-dark {
+  background-color: #b58863;
+}
+
+.selected {
+  background-color: #6f9c3c !important; /* より明るい緑、または目立つ色 */
+  /* box-shadow: inset 0 0 0 3px #5a812c; */
+}
+
+.legal-move {
+  background-color: rgba(0, 128, 0, 0.3) !important; /* 半透明の緑 */
+  border-radius: 50%;
+  /* または別のハイライト方法 */
+}
+.legal-move.has-enemy::after { /* 敵駒がいる場合の表示 (オプション) */
+    content: "";
+    position: absolute;
+    width: 90%;
+    height: 90%;
+    border: 3px solid rgba(255, 0, 0, 0.7);
+    border-radius: 50%;
+    box-sizing: border-box;
+}
+
+
+.last-move {
+    background-color: rgba(255, 255, 0, 0.4) !important; /* 黄色っぽくハイライト */
+}
+
+/* client/src/App.css などに追加 */
+.board {
+  display: grid;
+  grid-template-columns: repeat(8, 60px); /* 例: Squareのwidthと同じ */
+  grid-template-rows: repeat(8, 60px);    /* 例: Squareのheightと同じ */
+  width: 480px; /* 60px * 8 */
+  height: 480px; /* 60px * 8 */
+  border: 2px solid #333;
+  margin: 20px auto; /* 中央寄せ */
+}
+
+/* client/src/App.css などに追加 */
+.app-container {
+  text-align: center;
+  font-family: sans-serif;
+}
+
+.game-area {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start; /* ボードと情報エリアを上揃え */
+  gap: 20px; /* ボードと情報エリアの間隔 */
+  flex-wrap: wrap; /* 画面が小さい場合に折り返す */
+}
+
+/* client/src/App.css などに追加 */
+.game-info {
+  width: 200px; /* 例 */
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background-color: #f9f9f9;
+}
+
+.game-info h2 {
+  margin-top: 0;
+}
+
+.player-white {
+  font-weight: bold;
+  color: #5c3c10; /* 例: 白の手番の色 */
+}
+.player-black {
+  font-weight: bold;
+  color: #3a3a3a; /* 例: 黒の手番の色 */
+}
+
+.captured-pieces-container {
+  margin-top: 15px;
+}
+.captured-pieces {
+  margin-bottom: 10px;
+}
+.captured-pieces p {
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+.captured-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.captured-piece-symbol {
+  font-size: 1.2em;
+}
