@@ -7,6 +7,7 @@ import './App.css'; // App.css もしくは index.css にスタイルを記述
 // 仮のチェスロジック (いずれ utils/chessLogic.js などに移動)
 const ROWS = 8;
 const COLS = 8;
+const COL_CHARS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 const PIECE_TYPES = { PAWN: 'Pawn', ROOK: 'Rook', /* ... */ KING: 'King' };
 const UNICODE_PIECES = {
     white: { [PIECE_TYPES.PAWN]: '♙', /* ... */ [PIECE_TYPES.KING]: '♔' },
