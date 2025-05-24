@@ -578,36 +578,14 @@ export function applyMove(board, pieceToMove, toPos, promotionPieceType = null) 
  * @returns {boolean}
  */
 export function isSquareDirectlyVisibleByPiece(targetSquarePos, observingPiece) {
-  if (!observingPiece || !observingPiece.position || observingPiece.fovRange === undefined) { // fovRangeの存在も確認
-    // console.log(`DEBUG isSquareDirectlyVisibleByPiece: Invalid observingPiece or missing fovRange for piece at <span class="math-inline">\{observingPiece?\.position?\.row\},</span>{observingPiece?.position?.col} targeting <span class="math-inline">\{targetSquarePos\.row\},</span>{targetSquarePos.col}`);
-    return false;
-  }
+  if (!observingPiece || !observingPiece.position) return false; // observingPieceやそのpositionがない場合は見えない
   const { row: pieceRow, col: pieceCol } = observingPiece.position;
   const range = observingPiece.fovRange;
 
   const dr = Math.abs(targetSquarePos.row - pieceRow);
   const dc = Math.abs(targetSquarePos.col - pieceCol);
 
-  const isVisible = isWithinBoard(targetSquarePos.row, targetSquarePos.col) && Math.max(dr, dc) <= range;
-
-  // D4(row=3, col=3) or E4(row=3, col=4) が見える原因を探るためのログ (0-indexed)
-  // 白番の初期配置でD4またはE4が見えるのはおかしいので、その時の情報をログに出す
-  if (isVisible && ( (targetSquarePos.row === 3 && targetSquarePos.col === 3) || (targetSquarePos.row === 4 && targetSquarePos.col === 3) /* D4,E4の0-indexed座標、盤面によります */) ) {
-     // 座標系注意: チェス盤のD4は通常 (row 4, col 3) ですが、0-indexedなら (row 3, col 3)になります。
-     // スクリーンショットから判断すると、白が下側なので、D4は (row 3, col 3)、E4は (row 3, col 4) (0-indexed) と仮定します。
-     // (白ポーンが6行目、黒ポーンが1行目と仮定)
-     // もし白ポーンが1行目、黒ポーンが6行目なら、D4は (row 4, col 3), E4は (row 4, col 4) です。
-     // ここでは一般的な白が下側 (7,6行目) にいる初期配置を想定します。
-     // D4 = (3,3), E4 = (3,4) (0-indexed, row 0が黒側最奥)
-    if ( (targetSquarePos.row === 3 && targetSquarePos.col === 3) || // D4 (0-indexed)
-         (targetSquarePos.row === 3 && targetSquarePos.col === 4)    // E4 (0-indexed)
-    ) {
-      console.log(
-        `DEBUG isSquareDirectlyVisibleByPiece: Piece <span class="math-inline">\{observingPiece\.type\} at \(</span>{pieceRow},${pieceCol}) with FOV <span class="math-inline">\{range\} CAN SEE problematic square \(</span>{targetSquarePos.row},${targetSquarePos.col})`
-      );
-    }
-  }
-  return isVisible;
+  return isWithinBoard(targetSquarePos.row, targetSquarePos.col) && Math.max(dr, dc) <= range;
 }
 
 /**
@@ -618,33 +596,26 @@ export function isSquareDirectlyVisibleByPiece(targetSquarePos, observingPiece) 
  */
 export function getVisibleSquaresForPlayer(boardState, viewingPlayerColor) {
   const visibleSet = new Set();
-  if (!viewingPlayerColor) return visibleSet;
+  if (!viewingPlayerColor) return visibleSet; // プレイヤーカラーがない場合は空セット
 
-  // 1. まず自分の駒がいるマスはすべて見える
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE; c++) {
       const piece = boardState[r][c];
-      if (piece && piece.color === viewingPlayerColor) {
-        visibleSet.add(`<span class="math-inline">\{r\}\-</span>{c}`);
-      }
-    }
-  }
-
-  // 2. 次に、自分の各駒からの視界を追加する
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
-      const piece = boardState[r][c];
-      if (piece && piece.color === viewingPlayerColor) {
-        // この駒からの視界範囲内の全てのマスをチェック
+      if (piece && piece.color === viewingPlayerColor) { // 自分の駒の位置は必ず見える
+        visibleSet.add(`${r}-${c}`); // 自分の駒のいるマス
+        // 自分の駒からの視界
         for (let tr = 0; tr < BOARD_SIZE; tr++) {
           for (let tc = 0; tc < BOARD_SIZE; tc++) {
             if (isSquareDirectlyVisibleByPiece({ row: tr, col: tc }, piece)) {
-              visibleSet.add(`<span class="math-inline">\{tr\}\-</span>{tc}`);
+              visibleSet.add(`${tr}-${tc}`);
             }
           }
         }
       }
     }
   }
+  // 盤面全体のマスを一度追加し、自分の駒のいないマスで、どの自駒からも見えないマスを後でフィルタリングする方が
+  // 効率的かもしれないし、このままでも良い。
+  // 現状は、自分の駒がいるマスと、自分の駒から見える範囲のマスをリストアップしている。
   return visibleSet;
 }
