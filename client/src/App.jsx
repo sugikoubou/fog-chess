@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import './App.css';
 import { io } from 'socket.io-client';
 import Board from './components/Board';
-import GameInfo from './components/GameInfo'; // 後で作成
+import GameInfo from './components/GameInfo';
 import {
   initializeBoard,
   getLegalMovesForPiece,
@@ -11,28 +11,25 @@ import {
   checkGameOver,
   COLORS,
   PIECE_TYPES,
-  // isSquareVisibleToColor, // ポーンの初手判定で使用
-  // isSquareInPieceFOV // 駒自身の視界判定で使用
-} from '../../common/chessLogic'; // common からインポート
+  BOARD_SIZE // BOARD_SIZE をインポート
+} from '../../common/chessLogic';
 
-// VITE_BACKEND_URL の設定: Render環境では環境変数から、ローカルではデフォルト値
-const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://fog-chess.onrender.com/"; // デプロイ先のバックエンドURLをデフォルトに
+const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://fog-chess.onrender.com/";
 const socket = io(VITE_BACKEND_URL);
 
 function App() {
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [boardState, setBoardState] = useState(initializeBoard());
-  const [currentPlayer, setCurrentPlayer] = useState(COLORS.WHITE); // 白から開始
-  const [selectedPiece, setSelectedPiece] = useState(null); // { piece, position: {row, col} }
+  const [currentPlayer, setCurrentPlayer] = useState(COLORS.WHITE);
+  const [selectedPiece, setSelectedPiece] = useState(null);
   const [legalMoves, setLegalMoves] = useState([]);
   const [capturedPieces, setCapturedPieces] = useState({ [COLORS.WHITE]: [], [COLORS.BLACK]: [] });
-  const [gameStatus, setGameStatus] = useState('playing'); // 'playing', 'white_wins', 'black_wins'
-  const [playerColor, setPlayerColor] = useState(null); // 自分の駒の色 (オンライン対戦用)
+  const [gameStatus, setGameStatus] = useState('playing');
+  const [playerColor, setPlayerColor] = useState(null);
   const [room, setRoom] = useState(null);
-  const [lastMove, setLastMove] = useState(null); // { piece, from, to } アンパッサンやUIハイライト用
+  const [lastMove, setLastMove] = useState(null);
 
   useEffect(() => {
-    // 接続イベントのリスナー
     const onConnect = () => {
       setIsConnected(true);
       console.log('Socket connected');
@@ -45,7 +42,6 @@ function App() {
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
 
-    // サーバーからのイベントリスナー
     const onAssignColor = (assignedColor) => {
       console.log('CLIENT LOG: assignColor event received. Color:', assignedColor);
       setPlayerColor(assignedColor);
@@ -54,11 +50,11 @@ function App() {
 
     const onGameStart = ({ board, turn, roomId }) => {
       console.log(`CLIENT LOG: gameStart event received - Room ID: ${roomId}, Turn: ${turn}`);
-      // setBoardState(board); // サーバーから初期盤面を受け取る場合 (今回はローカルで初期化)
+      // setBoardState(board); // サーバーから初期盤面を受け取る場合はコメント解除
       setCurrentPlayer(turn);
       setRoom(roomId);
       setGameStatus('playing');
-      setCapturedPieces({ [COLORS.WHITE]: [], [COLORS.BLACK]: [] }); // キャプチャされた駒をリセット
+      setCapturedPieces({ [COLORS.WHITE]: [], [COLORS.BLACK]: [] });
       setSelectedPiece(null);
       setLegalMoves([]);
       setLastMove(null);
@@ -70,13 +66,13 @@ function App() {
       setBoardState(board);
       setCurrentPlayer(turn);
       setLastMove(newLastMove);
-      if (newCapturedPieces) { // newCapturedPieces が存在する場合のみ更新
+      if (newCapturedPieces) {
          setCapturedPieces(prev => ({
             [COLORS.WHITE]: [...(prev[COLORS.WHITE] || []), ...(newCapturedPieces[COLORS.WHITE] || [])],
             [COLORS.BLACK]: [...(prev[COLORS.BLACK] || []), ...(newCapturedPieces[COLORS.BLACK] || [])],
          }));
       }
-      const gameOverStatus = checkGameOver(board); // chessLogicから
+      const gameOverStatus = checkGameOver(board);
       if (gameOverStatus) {
         setGameStatus(gameOverStatus);
       }
@@ -85,7 +81,7 @@ function App() {
 
     const onGameOver = (status) => {
       console.log('CLIENT LOG: gameOver event received.', status);
-      setGameStatus(status.message || `${status.winner} wins! (${status.reason})`); // メッセージ構造を柔軟に
+      setGameStatus(status.message || `${status.winner} wins! (${status.reason})`);
       alert(`Game Over: ${status.winner} wins! (${status.reason})`);
     };
     socket.on('gameOver', onGameOver);
@@ -98,11 +94,9 @@ function App() {
 
     const onServerMessage = (message) => {
         console.log('CLIENT LOG: Message from server:', message);
-        // UIに表示するならここでステートを更新
     };
-    socket.on('message', onServerMessage); // サーバーからの 'message' イベントをリッスン
+    socket.on('message', onServerMessage);
 
-    // クリーンアップ関数
     return () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
@@ -113,7 +107,7 @@ function App() {
       socket.off('invalidMove', onInvalidMove);
       socket.off('message', onServerMessage);
     };
-  }, []); // 依存配列は空でOK (マウント時にリスナー登録、アンマウント時に解除)
+  }, []);
 
   const handleSquareClick = (row, col) => {
     console.log(`CLIENT LOG: Square clicked (${row}, ${col})`);
@@ -121,19 +115,14 @@ function App() {
       console.log('CLIENT LOG: Game not in playing status.');
       return;
     }
-    if (playerColor && currentPlayer !== playerColor) { // 自分の手番か、または観戦者でないか
+    if (!playerColor && !room) { // マッチング前は操作不可
+        console.log('CLIENT LOG: Not in a room and no player color. Please find a game first.');
+        return;
+    }
+    if (playerColor && currentPlayer !== playerColor) {
         console.log(`CLIENT LOG: Not your turn. Current: ${currentPlayer}, Yours: ${playerColor}`);
         return;
     }
-    if (!playerColor && room) { // ルームにはいるが、色が未割り当て (観戦モードなど将来的に)
-        console.log('CLIENT LOG: In room, but no player color assigned (observer?).');
-        return;
-    }
-    if (!room && !playerColor) { // Find Game 前の状態
-        console.log('CLIENT LOG: Not in a room and no player color. Please find a game.');
-        return;
-    }
-
 
     const clickedPieceData = boardState[row][col];
 
@@ -145,19 +134,19 @@ function App() {
         let promotionPieceType = null;
         if (currentSelectedPiece.type === PIECE_TYPES.PAWN &&
             ((currentSelectedPiece.color === COLORS.WHITE && row === 0) ||
-             (currentSelectedPiece.color === COLORS.BLACK && row === BOARD_SIZE - 1))) { // BOARD_SIZE を common/chessLogic からインポートするか、直接 7 や 0 を使う
-            const promo = prompt("Promote pawn to (q, r, b, n)?", "q")?.toLowerCase();
+             (currentSelectedPiece.color === COLORS.BLACK && row === BOARD_SIZE - 1))) {
+            const promoInput = prompt("Promote pawn to (q, r, b, n)?", "q")?.toLowerCase();
             const validPromotions = {
                 'q': PIECE_TYPES.QUEEN, 'r': PIECE_TYPES.ROOK,
                 'b': PIECE_TYPES.BISHOP, 'n': PIECE_TYPES.KNIGHT
             };
-            promotionPieceType = validPromotions[promo] || PIECE_TYPES.QUEEN;
+            promotionPieceType = validPromotions[promoInput] || PIECE_TYPES.QUEEN;
         }
 
         const moveData = {
             from: fromPos,
             to: { row, col },
-            pieceId: currentSelectedPiece.id, // 駒のIDを送る方がサーバーで特定しやすい
+            pieceId: currentSelectedPiece.id,
             promotion: promotionPieceType,
             room: room
         };
@@ -189,20 +178,15 @@ function App() {
   const handleFindGame = () => {
     console.log('CLIENT LOG: findGame button clicked. Emitting findGame event.');
     socket.emit('findGame');
-    // UI上で「対戦相手を探しています...」などの表示を出す場合は、ここでステートを更新
   };
-
-  // デバッグ用のログを追加
-  // console.log('Render App:', { isConnected, playerColor, room, currentPlayer, gameStatus });
 
   return (
     <div className="app-container">
       <h1>Fog Chess</h1>
       <p>Status: {isConnected ? 'Connected' : 'Disconnected'}</p>
 
-      {/* デバッグ用表示 */}
-      <div style={{ border: '1px solid red', margin: '10px', padding: '10px' }}>
-        <p><strong>Debug Info:</strong></p>
+      <div style={{ border: '1px solid red', margin: '10px', padding: '10px', backgroundColor: '#ffe0e0' }}>
+        <p><strong>Debug Info (Client State):</strong></p>
         <p>Player Color: {playerColor || 'Not assigned'}</p>
         <p>Room ID: {room || 'Not in a room'}</p>
         <p>Is Connected: {isConnected ? 'Yes' : 'No'}</p>
@@ -210,11 +194,23 @@ function App() {
         <p>Game Status: {gameStatus}</p>
       </div>
 
-
-      {!room && playerColor && ( // ルームに入っておらず、自分の色が決まっている場合のみ「Find Game」表示
-        <button onClick={handleFindGame}>Find Game</button>
+      {/* 強制的に表示するデバッグ用ボタン */}
+      {!room && ( // まだルームに入っていない場合のみ表示
+          <button
+            onClick={handleFindGame}
+            style={{ backgroundColor: 'orange', padding: '10px', margin: '10px', fontSize: '1.2em' }}
+          >
+            (Debug) Force Find Game
+          </button>
       )}
-      {room && <p>Room: {room} - You are: {playerColor || 'Observer?'}</p>}
+
+      {/* 元の表示条件のボタン (playerColorがセットされたらこちらが表示されるはず) */}
+      {!room && playerColor && (
+        <button onClick={handleFindGame} style={{ backgroundColor: 'lightgreen', padding: '10px', margin: '10px' }}>
+          Find Game
+        </button>
+      )}
+      {room && <p style={{color: 'blue', fontWeight: 'bold'}}>Room: {room} - You are: {playerColor || 'Observer?'}</p>}
 
       <div className="game-area">
         <Board
@@ -226,7 +222,7 @@ function App() {
         />
         <GameInfo
           currentPlayer={currentPlayer}
-          selectedPieceFOV={selectedPiece?.piece.fovRange} // selectedPieceがnullの場合のエラーを避ける
+          selectedPieceFOV={selectedPiece?.piece?.fovRange} // Optional chaining
           capturedPieces={capturedPieces}
           gameStatus={gameStatus}
         />
