@@ -1,0 +1,112 @@
+/* client/src/index.css */
+
+/* Tailwind CSS の基本的なディレクティブをインポート */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* グローバルなスタイルや、Tailwindで表現しにくいカスタムスタイル */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  /* App.jsx の一番外側のdivで背景色などを指定しているので、ここでは必須ではないかもしれません */
+  /* background-color: #f3f4f6; /* Tailwind gray-100 */
+  /* color: #1f2937; /* Tailwind gray-800 */
+}
+
+/*
+  元のHTMLにあったスタイル定義から、Tailwindで代替しにくいものや、
+  特定のコンポーネントに依存しない基本的なスタイルをここに記述します。
+  App.jsx や各コンポーネントの className で指定しているTailwindのクラスと重複しないように注意してください。
+*/
+
+/* セルとラベルの基本サイズ (clamp を使用しているためカスタムCSSで定義) */
+.cell, .label-cell {
+  width: clamp(30px, 10vw, 50px); /* 画面幅に応じてサイズが変わるように */
+  height: clamp(30px, 10vw, 50px);
+  display: flex; /* Tailwindの `flex` と同じ */
+  justify-content: center; /* Tailwindの `justify-center` と同じ */
+  align-items: center; /* Tailwindの `items-center` と同じ */
+  position: relative; /* Tailwindの `relative` と同じ */
+}
+
+/* セル特有のスタイル (Tailwindで代替可能だが、まとめて定義する場合) */
+.cell {
+  cursor: pointer; /* Tailwindの `cursor-pointer` */
+  user-select: none; /* Tailwindの `select-none` */
+}
+
+/* ラベルセルのフォントサイズ (clamp を使用) とスタイル */
+.label-cell {
+  font-size: clamp(10px, 3vw, 14px);
+  font-weight: bold; /* Tailwindの `font-bold` */
+  color: #4A5568; /* Tailwindの `text-gray-600` に相当 */
+}
+
+/* 駒の文字の基本的なスタイル (文字色やフォントサイズはCell.jsxでTailwindクラスで指定されている想定) */
+.piece-white, .piece-black {
+  /* text-shadow はTailwindに直接のユーティリティがないため、ここで定義 */
+  /* 必要であれば、駒のフォントサイズもここで clamp を使って指定できます */
+  /* font-size: clamp(18px, 5vw, 30px); */ /* Cell.jsxで text-3xl が指定されているので、どちらかで統一 */
+  z-index: 2; /* Tailwindの `z-20` などで代替可能 */
+}
+.piece-white {
+  /* color: #F0F0F0; Cell.jsxで text-gray-100 が指定されている */
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+}
+.piece-black {
+  /* color: #333333; Cell.jsxで text-gray-800 が指定されている */
+  text-shadow: 1px 1px 2px rgba(200,200,200,0.5);
+}
+
+/*
+  以下のクラスは、App.jsx や Cell.jsx でTailwindのクラス名として直接使用されているため、
+  ここで再定義すると競合したり、意図しない動作になる可能性があります。
+  Tailwindで実現できているものは、ここでの定義は不要です。
+  もしTailwindのクラスで実現できない特定の効果を狙う場合にのみ、ここで上書きや追加を検討します。
+
+  .fog { background-color: #4A5568; } /* Cell.jsxで bg-gray-600 (または bg-gray-700) を使用 */
+  .selected { outline: 3px solid #63B3ED !important; outline-offset: -3px; } /* Cell.jsxで outline ... を使用 */
+  .light-square { background-color: #FDE68A; } /* Cell.jsxで bg-yellow-200 を使用 */
+  .dark-square { background-color: #FBBF24; } /* Cell.jsxで bg-yellow-500 を使用 */
+*/
+
+/* 有効な移動候補を示すオーバーレイ (::after 疑似要素を使用するためカスタムCSS) */
+.valid-move-candidate-overlay::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 25%; /* セルのサイズに対する割合 */
+  height: 25%;
+  background-color: rgba(34, 139, 34, 0.6); /* 緑色の半透明な円 */
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none; /* クリックイベントを透過させる */
+  z-index: 1; /* 駒より手前に表示されるように調整 */
+}
+
+/* 視野インジケーター (clamp を使用しているためカスタムCSS) */
+.vision-indicator {
+  display: block;
+  font-size: clamp(8px, 1.8vw, 11px);
+  color: #2D3748; /* Tailwindの `text-gray-800` に相当 */
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(255, 255, 255, 0.75);
+  padding: 0px 4px;
+  border-radius: 3px;
+  z-index: 3; /* Tailwindの `z-30` などで代替可能 */
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* App.jsx でグリッドレイアウトに使っているIDセレクタに対するスタイルは、
+   基本的にTailwindのクラスで実現できているはずなので、ここでは不要です。
+   もし特定の調整が必要な場合のみ追加します。
+#game-layout-wrapper { ... }
+#game-board-layout { ... }
+#col-labels-top { ... }
+...など
+*/
