@@ -74,7 +74,7 @@ button:focus-visible {
 }
 /* 必要であれば色も指定 */
 .piece-white { color: #ffffff; } 
-.piece-black { color: #000000; } */
+.piece-black { color: #000000; } 
 
 /* client/src/App.css などに追加 */
 .square {

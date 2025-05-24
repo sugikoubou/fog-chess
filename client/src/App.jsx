@@ -154,9 +154,18 @@ function App() {
   };
 
   const handleFindGame = () => {
+    console.log('CLIENT LOG: findGame button clicked. Emitting findGame event.'); // ログ追加
     socket.emit('findGame');
-    // UI上で「対戦相手を探しています...」などの表示を出すと良い
-  };
+};
+
+// client/src/App.jsx の return 文内 (一時的なデバッグ用)
+// ...
+<p>Status: {isConnected ? 'Connected' : 'Disconnected'}</p>
+{/* 強制的に表示 */}
+<button onClick={handleFindGame}>Force Find Game (Debug)</button>
+{!room && playerColor && <button onClick={handleFindGame}>Find Game</button>}
+{room && <p>Room: {room} - You are: {playerColor}</p>}
+// ...
 
 
   return (
