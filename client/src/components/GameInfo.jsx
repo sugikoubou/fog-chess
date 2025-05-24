@@ -22,12 +22,12 @@ const CapturedPiecesDisplay = ({ pieces, color }) => {
 const GameInfo = ({ currentPlayer, selectedPieceFOV, capturedPieces, gameStatus }) => {
   return (
     <div className="game-info">
-      <h2>Game Info</h2>
-      <p>Current Turn: <span className={currentPlayer === COLORS.WHITE ? 'player-white' : 'player-black'}>{currentPlayer.toUpperCase()}</span></p>
+      <h2>Info</h2>
+      <p>現在の手番: <span className={currentPlayer === COLORS.WHITE ? 'player-white' : 'player-black'}>{currentPlayer.toUpperCase()}</span></p>
       {selectedPieceFOV !== undefined && selectedPieceFOV !== null && (
-        <p>Selected Piece FOV: {selectedPieceFOV}</p>
+        <p>視野の広さ: {selectedPieceFOV}</p>
       )}
-      <p>Status: {gameStatus}</p>
+      <p>Stats: {gameStatus}</p>
 
       <div className="captured-pieces-container">
         <CapturedPiecesDisplay pieces={capturedPieces[COLORS.BLACK]} color={COLORS.WHITE} /> {/* 白が取った黒駒 */}

@@ -31,17 +31,24 @@ function App() {
   const [lastMove, setLastMove] = useState(null); // { piece, from, to } アンパッサンやUIハイライト用
 
   useEffect(() => {
-    socket.on('connect', () => setIsConnected(true));
-    socket.on('disconnect', () => setIsConnected(false));
+    socket.on('connect', () => {
+        setIsConnected(true);
+        console.log('Socket connected'); // このログは出ていますか？
+    });
+    socket.on('disconnect', () => {
+        setIsConnected(false);
+        console.log('Socket disconnected');
+    });
 
     socket.on('assignColor', (assignedColor) => {
+      console.log('EVENT: assignColor - Player color received from server:', assignedColor); // ★重要ログ1
       setPlayerColor(assignedColor);
-      console.log(`You are ${assignedColor}`);
+      // console.log(`You are ${assignedColor}`); // 以前のログ
     });
 
     socket.on('gameStart', ({ board, turn, roomId }) => {
-        console.log(`Game started in room ${roomId}. Your turn: ${turn === playerColor}`);
-        setBoardState(board); // サーバーから初期盤面を受け取る
+        console.log(`EVENT: gameStart - Room ID received: ${roomId}, Turn: ${turn}`); // ★重要ログ2
+        // setBoardState(board); // サーバーから初期盤面を受け取る (もしあれば)
         setCurrentPlayer(turn);
         setRoom(roomId);
         setGameStatus('playing');

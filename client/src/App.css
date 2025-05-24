@@ -184,3 +184,7 @@ button:focus-visible {
 .captured-piece-symbol {
   font-size: 1.2em;
 }
+
+.game-info {
+  color: black;
+}
