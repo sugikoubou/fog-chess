@@ -190,26 +190,26 @@ button:focus-visible {
 }
 
 /* client/src/App.css */
-.foggy-square {
-  background-color: #777 !important; /* 例: 暗いグレー (他の背景色指定を上書きするため !important) */
-  opacity: 0.6; /* 例: 少し半透明に */
-}
-.foggy-square .piece { /* 霧の中の駒は非表示 (相手の駒の場合) */
-  display: none;
+.square {
+  position: relative; /* 疑似要素の基準点にする */
+  /* 他のスタイルはそのまま */
 }
 
-/* client/src/App.css など */
+.foggy-square::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(ellipse at center,
+                              rgba(80, 80, 80, 0.7) 0%,  /* 中心は少し薄い霧 */
+                              rgba(50, 50, 50, 0.85) 70%, /* 周囲は濃い霧 */
+                              rgba(30, 30, 30, 0.95) 100%); /* 端はさらに濃く */
+  z-index: 1; /* 駒より手前、マス背景より奥 (駒は非表示なのであまり影響ないかも) */
+  pointer-events: none; /* クリックイベントを透過させる */
+}
+
 .foggy-square .piece {
-  display: none !important; /* 霧の中の駒は完全に非表示 */
-}
-
-@keyframes subtleFogAnimation {
-  0% { opacity: 0.8; transform: scale(1); }
-  50% { opacity: 0.85; transform: scale(1.02); }
-  100% { opacity: 0.8; transform: scale(1); }
-}
-
-.foggy-square::before { /* アイデアAまたはCの疑似要素を使う場合 */
-  /* ... existing styles ... */
-  animation: subtleFogAnimation 15s infinite ease-in-out;
+  display: none !important;
 }
