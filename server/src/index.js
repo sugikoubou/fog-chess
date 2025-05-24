@@ -26,7 +26,11 @@ const PORT = process.env.PORT || 3000;
 
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:5173", "https://fog-chess.onrender.com"],
+    origin: [
+        "http://localhost:5173", // ローカル開発用フロントエンド
+        "https://fog-chess-front.onrender.com", // Render上のフロントエンド
+        "https://fog-chess.onrender.com" // バックエンド自身 (もし何らかの理由で必要なら)
+    ],
     methods: ["GET", "POST"],
   },
 });
