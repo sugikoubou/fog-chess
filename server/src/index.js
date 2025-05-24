@@ -104,95 +104,84 @@ io.on("connection", (socket) => {
 
   // 着手処理
   socket.on("makeMove", (moveData) => {
-    const { from, to, piece, promotion, room } = moveData;
-    const gameRoom = gameRooms[room];
+  // const { from, to, piece, promotion, room } = moveData; // 修正前
+  const { from, to, pieceId, promotion, room } = moveData; // ★修正点: piece を pieceId に変更
 
-    if (!gameRoom) {
-      socket.emit("invalidMove", "Game room not found.");
+  const gameRoom = gameRooms[room];
+
+  if (!gameRoom) {
+    socket.emit("invalidMove", "Game room not found.");
+    return;
+  }
+
+  const playerInRoom = gameRoom.players.find(p => p.id === socket.id);
+  if (!playerInRoom) {
+      socket.emit("invalidMove", "You are not in this game room.");
       return;
-    }
+  }
+  const playerColor = playerInRoom.color;
 
-    const playerInRoom = gameRoom.players.find(p => p.id === socket.id);
-    if (!playerInRoom) {
-        socket.emit("invalidMove", "You are not in this game room.");
-        return;
-    }
-    const playerColor = playerInRoom.color;
+  if (gameRoom.currentPlayer !== playerColor) {
+    socket.emit("invalidMove", "Not your turn.");
+    return;
+  }
 
-    // 1. 手番の検証
-    if (gameRoom.currentPlayer !== playerColor) {
-      socket.emit("invalidMove", "Not your turn.");
-      return;
-    }
+  const pieceOnBoard = gameRoom.boardState[from.row][from.col];
+  // ★修正点: piece.id を pieceId に変更
+  if (!pieceOnBoard || pieceOnBoard.id !== pieceId || pieceOnBoard.color !== playerColor) {
+    socket.emit("invalidMove", "Invalid piece or piece does not belong to you.");
+    return;
+  }
 
-    // 2. 駒の所有権の検証 (送られてきた駒情報と盤面の駒が一致するか)
-    const pieceOnBoard = gameRoom.boardState[from.row][from.col];
-    if (!pieceOnBoard || pieceOnBoard.id !== piece.id || pieceOnBoard.color !== playerColor) {
-      socket.emit("invalidMove", "Invalid piece or piece does not belong to you.");
-      return;
-    }
+  const legalMoves = getLegalMovesForPiece(pieceOnBoard, gameRoom.boardState, gameRoom.lastMove);
+  const isValidMove = legalMoves.some(
+    (legalMove) => legalMove.row === to.row && legalMove.col === to.col
+  );
 
-    // 3. 合法手の検証 (common/chessLogic.js を使用)
-    // getLegalMovesForPiece は piece オブジェクトを期待するので、盤面から取得したものを使用
-    const legalMoves = getLegalMovesForPiece(pieceOnBoard, gameRoom.boardState, gameRoom.lastMove);
-    const isValidMove = legalMoves.some(
-      (legalMove) => legalMove.row === to.row && legalMove.col === to.col
-    );
+  if (!isValidMove) {
+    socket.emit("invalidMove", "The move is not legal.");
+    return;
+  }
+  
+  const capturedPiece = gameRoom.boardState[to.row][to.col];
+  const newBoardState = applyMove(gameRoom.boardState, pieceOnBoard, to, promotion);
+  
+  const newCapturedPieces = { ...gameRoom.capturedPieces };
+  if (capturedPiece) {
+      newCapturedPieces[capturedPiece.color].push(capturedPiece); // 修正: capturedPiece.color を直接キーに
+  }
+  
+  const movedPieceOnNewBoard = newBoardState[to.row][to.col]; // 更新後の盤面から移動した駒を取得
 
-    if (!isValidMove) {
-      socket.emit("invalidMove", "The move is not legal.");
-      return;
-    }
-    
-    // 4. 手を適用し、盤面を更新
-    const capturedPiece = gameRoom.boardState[to.row][to.col]; // 取られる駒 (もしあれば)
-    const newBoardState = applyMove(gameRoom.boardState, pieceOnBoard, to, promotion);
-    
-    const newCapturedPieces = { ...gameRoom.capturedPieces };
-    if (capturedPiece) {
-        newCapturedPieces[capturedPiece.color === COLORS.WHITE ? COLORS.WHITE : COLORS.BLACK].push(capturedPiece);
-    }
-    // アンパッサンで取られた駒の処理
-    const movedPiece = newBoardState[to.row][to.col]; // applyMove後の駒
-    if (pieceOnBoard.type === PIECE_TYPES.PAWN && to.col !== from.col && !capturedPiece) {
-        // アンパッサンで取られた駒は、元のポーンと同じ行、移動先の列にいたはず
-        const enPassantCapturedRow = from.row;
-        const enPassantCapturedCol = to.col;
-        // applyMove 内で処理されるべきだが、念のため
-        const actualCapturedPawn = gameRoom.boardState[enPassantCapturedRow][enPassantCapturedCol]; // applyMove前の盤面で確認
-        if (actualCapturedPawn && actualCapturedPawn.type === PIECE_TYPES.PAWN && actualCapturedPawn.color !== pieceOnBoard.color) {
-            newCapturedPieces[actualCapturedPawn.color].push(actualCapturedPawn);
-        }
-    }
-
-
-    gameRoom.boardState = newBoardState;
-    gameRoom.currentPlayer = gameRoom.currentPlayer === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE;
-    gameRoom.lastMove = { piece: movedPiece, from, to }; // pieceは更新後のもの
-    gameRoom.capturedPieces = newCapturedPieces;
-
-
-    // 5. ゲーム状態をクライアントに送信
-    io.to(room).emit("gameStateUpdate", {
-      board: gameRoom.boardState,
-      turn: gameRoom.currentPlayer,
-      newLastMove: gameRoom.lastMove,
-      newCapturedPieces: { // 差分ではなく、更新された全リストを送る方がクライアントは楽かも
-        [COLORS.WHITE]: gameRoom.capturedPieces[COLORS.WHITE],
-        [COLORS.BLACK]: gameRoom.capturedPieces[COLORS.BLACK],
+  if (pieceOnBoard.type === PIECE_TYPES.PAWN && to.col !== from.col && !capturedPiece) {
+      const enPassantCapturedRow = from.row;
+      const enPassantCapturedCol = to.col;
+      const originalBoardPiece = gameRoom.boardState[enPassantCapturedRow][enPassantCapturedCol];
+      if (originalBoardPiece && originalBoardPiece.type === PIECE_TYPES.PAWN && originalBoardPiece.color !== pieceOnBoard.color) {
+          newCapturedPieces[originalBoardPiece.color].push(originalBoardPiece);
       }
-    });
+  }
 
-    // 6. ゲーム終了判定
-    const gameOverStatus = checkGameOver(gameRoom.boardState);
-    if (gameOverStatus) {
-      const winner = gameOverStatus.startsWith(COLORS.WHITE) ? COLORS.WHITE : COLORS.BLACK;
-      io.to(room).emit("gameOver", { winner, reason: "King captured" });
-      console.log(`Game Over in room ${room}. Winner: ${winner}`);
-      // ルーム情報を削除または非アクティブ化
-      delete gameRooms[room];
-    }
+  gameRoom.boardState = newBoardState;
+  gameRoom.currentPlayer = gameRoom.currentPlayer === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE;
+  gameRoom.lastMove = { piece: movedPieceOnNewBoard, from, to }; // 更新後の駒情報を使用
+  gameRoom.capturedPieces = newCapturedPieces;
+
+  io.to(room).emit("gameStateUpdate", {
+    board: gameRoom.boardState,
+    turn: gameRoom.currentPlayer,
+    newLastMove: gameRoom.lastMove,
+    newCapturedPieces: gameRoom.capturedPieces // 更新された全体を送る
   });
+
+  const gameOverStatus = checkGameOver(gameRoom.boardState);
+  if (gameOverStatus) {
+    const winner = gameOverStatus.startsWith(COLORS.WHITE) ? COLORS.WHITE : COLORS.BLACK;
+    io.to(room).emit("gameOver", { winner, reason: "King captured" });
+    console.log(`Game Over in room ${room}. Winner: ${winner}`);
+    delete gameRooms[room];
+  }
+});
 
   // 切断処理
   socket.on("disconnect", () => {
