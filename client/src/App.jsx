@@ -15,7 +15,7 @@ import {
   // isSquareInPieceFOV // 駒自身の視界判定で使用
 } from '../../common/chessLogic'; // common からインポート
 
-const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
+const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://fog-chess.onrender.com/";
 const socket = io(VITE_BACKEND_URL);
 
 function App() {
