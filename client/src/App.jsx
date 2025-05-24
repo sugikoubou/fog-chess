@@ -233,7 +233,7 @@ function App() {
       {!room && playerColor && ( // 色は割り当てられたが、まだルームには入っていない場合 (通常はすぐルームに入るはず)
         <p style={{color: 'purple'}}>Waiting for game to start... You are {playerColor}</p>
       )}
-      {room && <p style={{color: 'blue', fontWeight: 'bold'}}>Room: {room} - You are: {playerColor || 'Observer?'}</p>}
+      {room && <p style={{color: 'blue', fontWeight: 'bold'}}>Room: {room} - あなたの色は: {playerColor || 'Observer?'}</p>}
 
       <div className="game-area">
         <Board
