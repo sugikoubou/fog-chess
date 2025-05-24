@@ -1,36 +1,10 @@
-# render.yaml (ルートディレクトリに配置)
-services:
-  - type: web # バックエンドサービス
-    name: chess-server
-    env: node
-    region: oregon # 例: リージョンを選択
-    plan: free # または有料プラン
-    rootDir: server # バックエンドのルートディレクトリ
-    buildCommand: npm install
-    startCommand: npm start
-    envVars:
-      - key: NODE_VERSION
-        value: 18 # 使用するNode.jsのバージョンに合わせて変更
-      # 他の環境変数 (例: データベースURLなど)
-      # - key: DATABASE_URL
-      #   fromDatabase:
-      #     name: chess-db # Renderで作成したDB名
-      #     property: connectionString
-
-  - type: static # フロントエンドサービス (静的サイトの場合)
-    name: chess-client
-    region: oregon # 例: リージョンを選択
-    plan: free
-    rootDir: client # フロントエンドのルートディレクトリ
-    buildCommand: npm install && npm run build
-    publishDir: dist # Viteの場合。CRAならbuild
-    routes:
-      - type: rewrite # SPAのための設定
-        source: /*
-        destination: /index.html
-    envVars:
-      - key: NODE_VERSION # ビルド時にNode.jsが必要な場合
-        value: 18
-      # ビルド時にバックエンドAPIのURLを参照する場合など
-      # - key: VITE_API_URL # Reactアプリ側で import.meta.env.VITE_API_URL として参照
-      #   value: https://your-chess-server-xxxx.onrender.com # バックエンドサービスのURL
+# render.yaml の client サービス部分の例
+- type: static
+  name: chess-client
+  # ... (他の設定) ...
+  envVars:
+    - key: VITE_SOCKET_URL # Viteの場合、import.meta.env.VITE_SOCKET_URLで参照
+      fromService:
+        type: web
+        name: chess-server # バックエンドサービス名
+        envVarKey: RENDER_EXTERNAL_URL # Renderが提供する外部URL
