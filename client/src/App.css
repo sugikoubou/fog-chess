@@ -188,3 +188,22 @@ button:focus-visible {
 .game-info {
   color: black;
 }
+
+/* client/src/App.css */
+.foggy-square {
+  background-color: #777 !important; /* 例: 暗いグレー (他の背景色指定を上書きするため !important) */
+  opacity: 0.6; /* 例: 少し半透明に */
+}
+.foggy-square .piece { /* 霧の中の駒は非表示 (相手の駒の場合) */
+  display: none;
+}
+
+/* client/src/App.css など */
+.foggy-square {
+  background-color: #505050 !important; /* 暗めのグレー、必要に応じて調整 */
+  /* filter: blur(1px); */ /* ぼかし効果も面白いかも */
+}
+
+.foggy-square .piece {
+  display: none !important; /* 霧の中の駒は完全に非表示 */
+}

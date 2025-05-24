@@ -570,3 +570,52 @@ export function applyMove(board, pieceToMove, toPos, promotionPieceType = null) 
 
     return newBoard;
 }
+
+/**
+ * 指定された駒から見て、指定されたマスが見えるかどうか (遮蔽なし)
+ * @param {{row: number, col: number}} targetSquarePos - 対象のマスの座標
+ * @param {object} observingPiece - 観測している駒オブジェクト
+ * @returns {boolean}
+ */
+export function isSquareDirectlyVisibleByPiece(targetSquarePos, observingPiece) {
+  if (!observingPiece || !observingPiece.position) return false; // observingPieceやそのpositionがない場合は見えない
+  const { row: pieceRow, col: pieceCol } = observingPiece.position;
+  const range = observingPiece.fovRange;
+
+  const dr = Math.abs(targetSquarePos.row - pieceRow);
+  const dc = Math.abs(targetSquarePos.col - pieceCol);
+
+  return isWithinBoard(targetSquarePos.row, targetSquarePos.col) && Math.max(dr, dc) <= range;
+}
+
+/**
+ * 指定されたプレイヤーが見える全てのマスの座標セットを取得 (遮蔽なし)
+ * @param {Array<Array<object|null>>} boardState - 現在の盤面
+ * @param {string} viewingPlayerColor - 視点となるプレイヤーの色
+ * @returns {Set<string>} 見えるマスの座標セット (例: "row-col" の文字列形式)
+ */
+export function getVisibleSquaresForPlayer(boardState, viewingPlayerColor) {
+  const visibleSet = new Set();
+  if (!viewingPlayerColor) return visibleSet; // プレイヤーカラーがない場合は空セット
+
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      const piece = boardState[r][c];
+      if (piece && piece.color === viewingPlayerColor) { // 自分の駒の位置は必ず見える
+        visibleSet.add(`${r}-${c}`); // 自分の駒のいるマス
+        // 自分の駒からの視界
+        for (let tr = 0; tr < BOARD_SIZE; tr++) {
+          for (let tc = 0; tc < BOARD_SIZE; tc++) {
+            if (isSquareDirectlyVisibleByPiece({ row: tr, col: tc }, piece)) {
+              visibleSet.add(`${tr}-${tc}`);
+            }
+          }
+        }
+      }
+    }
+  }
+  // 盤面全体のマスを一度追加し、自分の駒のいないマスで、どの自駒からも見えないマスを後でフィルタリングする方が
+  // 効率的かもしれないし、このままでも良い。
+  // 現状は、自分の駒がいるマスと、自分の駒から見える範囲のマスをリストアップしている。
+  return visibleSet;
+}

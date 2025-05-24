@@ -11,9 +11,11 @@ import {
   checkGameOver,
   COLORS,
   PIECE_TYPES,
-  BOARD_SIZE // BOARD_SIZE をインポート
-} from '../../common/chessLogic';
+  BOARD_SIZE, // カンマ抜けを修正
+  getVisibleSquaresForPlayer // 追加
+} from '../../common/chessLogic'; // common からインポート
 
+// VITE_BACKEND_URL の設定: Render環境では環境変数から、ローカルではデフォルト値
 const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://fog-chess.onrender.com/";
 const socket = io(VITE_BACKEND_URL);
 
@@ -28,7 +30,9 @@ function App() {
   const [playerColor, setPlayerColor] = useState(null);
   const [room, setRoom] = useState(null);
   const [lastMove, setLastMove] = useState(null);
+  const [visibleSquares, setVisibleSquares] = useState(new Set()); // 「戦場の霧」用
 
+  // Socket.IO イベントリスナー設定
   useEffect(() => {
     const onConnect = () => {
       setIsConnected(true);
@@ -107,7 +111,18 @@ function App() {
       socket.off('invalidMove', onInvalidMove);
       socket.off('message', onServerMessage);
     };
-  }, []);
+  }, []); // マウント時にリスナー登録、アンマウント時に解除
+
+  // 「戦場の霧」のための visibleSquares 更新ロジック
+  useEffect(() => {
+    if (playerColor && boardState) {
+      const currentVisibleSquares = getVisibleSquaresForPlayer(boardState, playerColor);
+      setVisibleSquares(currentVisibleSquares);
+      console.log('CLIENT LOG: Visible squares updated for player', playerColor, '- Count:', currentVisibleSquares.size);
+    } else {
+      setVisibleSquares(new Set()); // プレイヤーカラーがない場合は霧をクリア（または全マス霧）
+    }
+  }, [boardState, playerColor]); // boardStateかplayerColorが変わったら再計算
 
   const handleSquareClick = (row, col) => {
     console.log(`CLIENT LOG: Square clicked (${row}, ${col})`);
@@ -115,7 +130,7 @@ function App() {
       console.log('CLIENT LOG: Game not in playing status.');
       return;
     }
-    if (!playerColor && !room) { // マッチング前は操作不可
+    if (!playerColor && !room) {
         console.log('CLIENT LOG: Not in a room and no player color. Please find a game first.');
         return;
     }
@@ -128,6 +143,14 @@ function App() {
 
     if (selectedPiece) {
       const { piece: currentSelectedPiece, position: fromPos } = selectedPiece;
+      // クリックしたマスが見えているか確認 (霧ルール)
+      if (!visibleSquares.has(`${row}-${col}`)) {
+          console.log('CLIENT LOG: Clicked on a foggy square. Cannot move or select.');
+          setSelectedPiece(null); // 選択解除
+          setLegalMoves([]);
+          return;
+      }
+
       const targetMove = legalMoves.find(move => move.row === row && move.col === col);
 
       if (targetMove) {
@@ -158,7 +181,7 @@ function App() {
       } else if (clickedPieceData && clickedPieceData.color === currentPlayer) {
         console.log('CLIENT LOG: Selected another own piece.');
         setSelectedPiece({ piece: clickedPieceData, position: { row, col } });
-        const moves = getLegalMovesForPiece(clickedPieceData, boardState, lastMove);
+        const moves = getLegalMovesForPiece(clickedPieceData, boardState, lastMove, visibleSquares, playerColor); // visibleSquares と playerColor を渡す
         setLegalMoves(moves);
       } else {
         console.log('CLIENT LOG: Clicked invalid square or deselecting.');
@@ -166,9 +189,15 @@ function App() {
         setLegalMoves([]);
       }
     } else if (clickedPieceData && clickedPieceData.color === currentPlayer) {
+      // 駒を初めて選択する場合も、そのマスが見えているか確認
+      if (!visibleSquares.has(`${row}-${col}`)) {
+          console.log('CLIENT LOG: Cannot select piece in a foggy square.');
+          return;
+      }
       console.log('CLIENT LOG: Selected own piece.');
       setSelectedPiece({ piece: clickedPieceData, position: { row, col } });
-      const moves = getLegalMovesForPiece(clickedPieceData, boardState, lastMove);
+      // 合法手の計算にも visibleSquares と playerColor を渡す (chessLogic側の修正が必要になる場合)
+      const moves = getLegalMovesForPiece(clickedPieceData, boardState, lastMove, visibleSquares, playerColor);
       setLegalMoves(moves);
     } else {
       console.log('CLIENT LOG: Clicked empty square or opponent piece without selection.');
@@ -192,10 +221,10 @@ function App() {
         <p>Is Connected: {isConnected ? 'Yes' : 'No'}</p>
         <p>Current Turn: {currentPlayer}</p>
         <p>Game Status: {gameStatus}</p>
+        <p>Visible Squares Count: {visibleSquares.size}</p>
       </div>
 
-      {/* 強制的に表示するデバッグ用ボタン */}
-      {!room && ( // まだルームに入っていない場合のみ表示
+      {!room && (
           <button
             onClick={handleFindGame}
             style={{ backgroundColor: 'orange', padding: '10px', margin: '10px', fontSize: '1.2em' }}
@@ -204,7 +233,6 @@ function App() {
           </button>
       )}
 
-      {/* 元の表示条件のボタン (playerColorがセットされたらこちらが表示されるはず) */}
       {!room && playerColor && (
         <button onClick={handleFindGame} style={{ backgroundColor: 'lightgreen', padding: '10px', margin: '10px' }}>
           Find Game
@@ -219,10 +247,12 @@ function App() {
           selectedPiecePos={selectedPiece?.position}
           legalMoves={legalMoves}
           lastMove={lastMove}
+          visibleSquares={visibleSquares}
+          playerColor={playerColor}
         />
         <GameInfo
           currentPlayer={currentPlayer}
-          selectedPieceFOV={selectedPiece?.piece?.fovRange} // Optional chaining
+          selectedPieceFOV={selectedPiece?.piece?.fovRange}
           capturedPieces={capturedPieces}
           gameStatus={gameStatus}
         />

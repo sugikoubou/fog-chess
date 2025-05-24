@@ -2,21 +2,23 @@
 import React from 'react';
 import Square from './Square';
 
-const Board = ({ boardState, onSquareClick, selectedPiecePos, legalMoves, lastMove }) => {
+// visibleSquares と playerColor を props で受け取る
+const Board = ({ boardState, onSquareClick, selectedPiecePos, legalMoves, lastMove, visibleSquares, playerColor }) => {
   const renderSquare = (row, col) => {
     const piece = boardState[row][col];
     const isDark = (row + col) % 2 === 1;
     const isSelected = selectedPiecePos && selectedPiecePos.row === row && selectedPiecePos.col === col;
-    const isLegalMove = legalMoves.some(move => move.row === row && move.col === col);
+    const isLegal = legalMoves.some(move => move.row === row && move.col === col);
 
-    let isLastMoveSquare = false;
+    let isLast = false;
     if (lastMove) {
         if ((lastMove.from.row === row && lastMove.from.col === col) ||
             (lastMove.to.row === row && lastMove.to.col === col) ) {
-            isLastMoveSquare = true;
+            isLast = true;
         }
     }
-
+    // マスが見えるかどうか
+    const isVisible = visibleSquares.has(`${row}-${col}`);
 
     return (
       <Square
@@ -25,19 +27,13 @@ const Board = ({ boardState, onSquareClick, selectedPiecePos, legalMoves, lastMo
         isDark={isDark}
         onClick={() => onSquareClick(row, col)}
         isSelected={isSelected}
-        isLegalMove={isLegalMove}
-        isLastMoveSquare={isLastMoveSquare}
+        isLegalMove={isLegal} // isLegalMove の名前を isLegal に変更した場合はここも修正
+        isLastMoveSquare={isLast} // isLastMoveSquare の名前を isLast に変更した場合はここも修正
+        isVisible={isVisible}     // isVisible を渡す
+        playerColor={playerColor} // playerColor を渡す
       />
     );
   };
-
-  return (
-    <div className="board">
-      {boardState.map((rowArr, rowIndex) =>
-        rowArr.map((_, colIndex) => renderSquare(rowIndex, colIndex))
-      )}
-    </div>
-  );
+  // ...
 };
-
 export default Board;
