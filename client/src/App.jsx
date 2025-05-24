@@ -1,7 +1,7 @@
 // client/src/App.jsx
 import React, { useState, useEffect } from 'react';
 import Board from './components/Board';
-//import './App.css'; // App.css もしくは index.css にスタイルを記述
+import './App.css'; // App.css もしくは index.css にスタイルを記述
 // import './index.css'; // もし Tailwind の設定を index.css で行っているなら
 
 // 仮のチェスロジック (いずれ utils/chessLogic.js などに移動)
