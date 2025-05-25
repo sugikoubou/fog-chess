@@ -30,6 +30,7 @@ export const PIECE_SYMBOLS = {
   },
 };
 
+// 各駒の「視界の範囲」
 export const PIECE_FOV_RANGES = {
   [PIECE_TYPES.PAWN]: 1,
   [PIECE_TYPES.ROOK]: 3,
@@ -66,7 +67,7 @@ export function initializeBoard() {
     placePiece(PIECE_TYPES.PAWN, COLORS.BLACK, 1, c);
     placePiece(PIECE_TYPES.PAWN, COLORS.WHITE, 6, c);
   }
-  // 他の駒の配置 (ルーク、ナイト、ビショップ、クイーン、キング) - 前回と同様
+  // 他の駒の配置
   placePiece(PIECE_TYPES.ROOK, COLORS.BLACK, 0, 0);
   placePiece(PIECE_TYPES.ROOK, COLORS.BLACK, 0, 7);
   placePiece(PIECE_TYPES.ROOK, COLORS.WHITE, 7, 0);
@@ -96,45 +97,24 @@ export function isWithinBoard(row, col) {
   return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
 }
 
-/**
- * 指定されたマスが、移動しようとしている駒にとって占有可能か (空か敵の駒)
- * @param {number} targetRow - 対象マスの行
- * @param {number} targetCol - 対象マスの列
- * @param {string} movingPieceColor - 移動する駒の色
- * @param {Array<Array<object|null>>} boardState - 現在の盤面
- * @returns {boolean}
- */
 export function canOccupySquare(targetRow, targetCol, movingPieceColor, boardState) {
   if (!isWithinBoard(targetRow, targetCol)) return false;
   const targetPiece = boardState[targetRow][targetCol];
   return !targetPiece || targetPiece.color !== movingPieceColor;
 }
 
-// --- 視界ロジック ---
-
-/**
- * 指定されたマスが、ある駒の直接的な視界内にあるかどうかを判定 (遮蔽なし)
- * @param {{row: number, col: number}} targetSquarePos - 対象のマスの座標
- * @param {object} observingPiece - 観測している駒オブジェクト
- * @returns {boolean}
- */
-export function isSquareInPieceFOV(targetSquarePos, observingPiece) {
-  if (!observingPiece) return false;
+// --- 視界ロジック (変更なし) ---
+export function isSquareDirectlyVisibleByPiece(targetSquarePos, observingPiece) {
+  if (!observingPiece || !observingPiece.position || observingPiece.fovRange === undefined) {
+    return false;
+  }
   const { row: pieceRow, col: pieceCol } = observingPiece.position;
   const range = observingPiece.fovRange;
-
   const dr = Math.abs(targetSquarePos.row - pieceRow);
   const dc = Math.abs(targetSquarePos.col - pieceCol);
-
-  return Math.max(dr, dc) <= range;
+  return isWithinBoard(targetSquarePos.row, targetSquarePos.col) && Math.max(dr, dc) <= range;
 }
 
-/**
- * 盤上の指定された色の全ての駒を取得
- * @param {string} color - COLORS.WHITE または COLORS.BLACK
- * @param {Array<Array<object|null>>} boardState
- * @returns {Array<object>} 指定された色の駒のリスト
- */
 export function getAllPiecesOfColor(color, boardState) {
     const pieces = [];
     for (let r = 0; r < BOARD_SIZE; r++) {
@@ -148,34 +128,39 @@ export function getAllPiecesOfColor(color, boardState) {
     return pieces;
 }
 
-/**
- * 指定されたマスが、指定された色のいずれかの駒から視認可能か判定
- * @param {{row: number, col: number}} targetSquarePos - 対象のマスの座標
- * @param {string} observingColor - 観測側の色 (COLORS.WHITE または COLORS.BLACK)
- * @param {Array<Array<object|null>>} boardState - 現在の盤面
- * @returns {boolean}
- */
-export function isSquareVisibleToColor(targetSquarePos, observingColor, boardState) {
-    const friendlyPieces = getAllPiecesOfColor(observingColor, boardState);
-    for (const piece of friendlyPieces) {
-        if (isSquareInPieceFOV(targetSquarePos, piece)) {
-            return true;
+export function getVisibleSquaresForPlayer(boardState, viewingPlayerColor) {
+  const visibleSet = new Set();
+  if (!viewingPlayerColor) return visibleSet;
+
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      const pieceOnSquare = boardState[r][c]; // 変数名を piece から pieceOnSquare に変更
+      if (pieceOnSquare && pieceOnSquare.color === viewingPlayerColor) {
+        visibleSet.add(`${r}-${c}`);
+        for (let tr = 0; tr < BOARD_SIZE; tr++) {
+          for (let tc = 0; tc < BOARD_SIZE; tc++) {
+            if (isSquareDirectlyVisibleByPiece({ row: tr, col: tc }, pieceOnSquare)) {
+              visibleSet.add(`${tr}-${tc}`);
+            }
+          }
         }
+      }
     }
-    return false;
+  }
+  return visibleSet;
 }
 
-
-// --- 移動生成ロジック ---
+// --- 移動生成ロジック (修正箇所) ---
 
 /**
  * ポーンの合法な移動先を取得
  * @param {object} pawn - ポーンの駒オブジェクト
  * @param {Array<Array<object|null>>} boardState - 現在の盤面
  * @param {object} [lastMove=null] - 直前の相手の動き (アンパッサン用)
+ * @param {Set<string>} visibleSquares - 現在のプレイヤーが見えるマスのセット (App.jsxから渡される想定)
  * @returns {Array<{row: number, col: number}>}
  */
-export function getPawnMoves(pawn, boardState, lastMove = null) {
+export function getPawnMoves(pawn, boardState, lastMove = null, visibleSquares) {
   const moves = [];
   const { row, col } = pawn.position;
   const color = pawn.color;
@@ -186,38 +171,20 @@ export function getPawnMoves(pawn, boardState, lastMove = null) {
   if (
     isWithinBoard(oneStepForward.row, oneStepForward.col) &&
     !boardState[oneStepForward.row][oneStepForward.col] && // 1マス先が空
-    isSquareInPieceFOV(oneStepForward, pawn) // ポーン自身の視界で1マス先が見える
+    isSquareDirectlyVisibleByPiece(oneStepForward, pawn)   // ★ルール: 移動先は自身の視界内
+    // visibleSquares.has(`${oneStepForward.row}-${oneStepForward.col}`) // UI上の霧とは別で、駒自身の移動制限
   ) {
     moves.push(oneStepForward);
 
     // 2. 前方への移動 (初手2マス)
+    // ★ルール変更: ポーンの初手2マス移動は、視界ルールを特例として無視し、経路が空いていれば可能とする
     if (!pawn.hasMoved) {
       const twoStepsForward = { row: row + 2 * direction, col: col };
       if (
         isWithinBoard(twoStepsForward.row, twoStepsForward.col) &&
         !boardState[twoStepsForward.row][twoStepsForward.col] && // 2マス先が空
-        // ポーンの前方1マス目と2マス目の両方が、自軍の誰かから視認可能であること
-        isSquareVisibleToColor(oneStepForward, pawn.color, boardState) &&
-        isSquareVisibleToColor(twoStepsForward, pawn.color, boardState) &&
-        // かつ、移動先の2マス目がポーン自身の視界に入っている必要があるか？
-        // 今回のルール「視界の外までは動けない」より、移動先は自身の視界内である必要がある。
-        // しかし、ポーンのFOV1では2マス先は自身の視界外。
-        // 「他の何かしらの駒によってポーンの前方2マスの視界を確保できている場合に限り」というルールを優先し、
-        // ポーン自身のFOVで2マス先が見えなくても、他の味方が見ていればOKと解釈。
-        // ただし、最終的な移動先(twoStepsForward)は、ルール「視界の外までは動けない」に基づき、
-        // 移動するポーン自身の視界範囲内である必要がある。
-        // この条件だと、ポーンのFOVが1なので2マス移動はやはり不可。
-        //
-        // 再度整理：「他の何かしらの駒によってポーンの前方2マスの視界を確保できている」
-        // これは「移動の前提条件」。
-        // 加えて、「視界の外までは動けない」という基本ルールがポーンにも適用されるなら、
-        // ポーンは自身の視界(FOV1)の外には動けない。
-        //
-        // もし「他の駒が視界を確保していれば、ポーン自身の視界制限を無視して2マス動ける」のであれば、
-        // 以下の isSquareInPieceFOV(twoStepsForward, pawn) のチェックは不要になる。
-        // ここでは後者の解釈（特別ルールとしてポーン自身の視界制限を無視）で進めてみる。
-        // isSquareInPieceFOV(twoStepsForward, pawn) // この行をコメントアウトまたは削除
-        true // 上記条件を満たせばOK
+        !boardState[oneStepForward.row][oneStepForward.col]      // 1マス先も空 (経路)
+        // isSquareDirectlyVisibleByPiece(twoStepsForward, pawn) // ★この視界チェックは特例で不要とする
       ) {
         moves.push(twoStepsForward);
       }
@@ -236,96 +203,110 @@ export function getPawnMoves(pawn, boardState, lastMove = null) {
       if (
         targetPiece &&
         targetPiece.color !== color && // 敵の駒がいる
-        isSquareInPieceFOV(capMove, pawn) // ポーン自身の視界で攻撃対象マスが見える
+        isSquareDirectlyVisibleByPiece(capMove, pawn) // ★ルール: 攻撃対象マスは自身の視界内
+        // visibleSquares.has(`${capMove.row}-${capMove.col}`) // UI上の霧とは別
       ) {
         moves.push(capMove);
       }
     }
   }
 
-  // 4. アンパッサン (TODO)
-  // 条件:
-  // - 自ポーンが5段目 (白ならrow=3, 黒ならrow=4) にいる
-  // - lastMove が相手ポーンの2マス移動である
-  // - lastMove で移動した相手ポーンが、自ポーンの左右どちらかにいる
-  // - 移動先 (相手ポーンの1マス後ろ) が空である
-  // - 移動先が自ポーンの視界内である
-  // - 取られる相手ポーンが自ポーンの視界内である (これは移動先の視界内判定に含まれることが多い)
+  // 4. アンパッサン
   if (lastMove && lastMove.piece.type === PIECE_TYPES.PAWN &&
-      Math.abs(lastMove.from.row - lastMove.to.row) === 2 && // 相手が2マス移動
-      pawn.position.row === lastMove.to.row && // 同じ行にいる
-      Math.abs(pawn.position.col - lastMove.to.col) === 1) { // 隣にいる
+      Math.abs(lastMove.from.row - lastMove.to.row) === 2 &&
+      pawn.position.row === lastMove.to.row &&
+      Math.abs(pawn.position.col - lastMove.to.col) === 1) {
     const enPassantTargetSquare = { row: lastMove.to.row + direction, col: lastMove.to.col };
-    if (isSquareInPieceFOV(enPassantTargetSquare, pawn) && // 移動先が見える
-        isSquareInPieceFOV(lastMove.to, pawn) // 取る駒（の位置）が見える
-       ) {
-      // アンパッサンは特殊な捕獲なので、識別子を付与すると良いかも
-      moves.push({ ...enPassantTargetSquare, enPassant: true, capturedPiecePosition: lastMove.to });
+    const capturedPieceOriginalPos = { row: lastMove.to.row, col: lastMove.to.col };
+    if (
+      isSquareDirectlyVisibleByPiece(enPassantTargetSquare, pawn) && // 移動先が視界内
+      isSquareDirectlyVisibleByPiece(capturedPieceOriginalPos, pawn)  // 取る駒がいた場所が視界内
+    ) {
+      moves.push({ ...enPassantTargetSquare, enPassant: true, capturedPiecePosition: capturedPieceOriginalPos });
     }
   }
-
-
   return moves;
 }
 
 /**
- * ルークの合法な移動先を取得
- * @param {object} rook - ルークの駒オブジェクト
+ * スライディングピース（ルーク、ビショップ、クイーン）の移動を生成する共通関数
+ * @param {object} piece - 駒オブジェクト
  * @param {Array<Array<object|null>>} boardState - 現在の盤面
+ * @param {Array<{dr: number, dc: number}>} directions - 移動方向の配列
+ * @param {Set<string>} visibleSquares - 現在のプレイヤーが見えるマスのセット
  * @returns {Array<{row: number, col: number}>}
  */
-export function getRookMoves(rook, boardState) {
+function getSlidingPieceMoves(piece, boardState, directions, visibleSquares) {
   const moves = [];
-  const { row: startRow, col: startCol } = rook.position;
-  const color = rook.color;
-
-  const directions = [
-    { dr: -1, dc: 0 }, // 上
-    { dr: 1, dc: 0 },  // 下
-    { dr: 0, dc: -1 }, // 左
-    { dr: 0, dc: 1 },  // 右
-  ];
+  const { row: startRow, col: startCol } = piece.position;
+  const color = piece.color;
 
   for (const { dr, dc } of directions) {
+    // ★修正: 視界の限り無限に移動できる -> 駒の移動距離は盤の端まで。ただし各マスが視界内かチェック
     for (let i = 1; i < BOARD_SIZE; i++) {
       const currentRow = startRow + dr * i;
       const currentCol = startCol + dc * i;
 
-      if (!isWithinBoard(currentRow, currentCol)) break; // 盤外に出たら終了
+      if (!isWithinBoard(currentRow, currentCol)) break; // 盤外
 
       const targetSquarePos = { row: currentRow, col: currentCol };
-      if (!isSquareInPieceFOV(targetSquarePos, rook)) break; // ルークの視界外に出たら、その方向は終了
+
+      // ★ルール: 移動先のマスは、移動する駒自身の視界 (fovRange) 内である必要がある
+      if (!isSquareDirectlyVisibleByPiece(targetSquarePos, piece)) {
+        // このマスは駒自身の直接の視界外なので、これ以上この方向へは進めないし、このマスも合法手ではない
+        break;
+      }
+      // UI上の霧(visibleSquares)は、ここでは移動可否の直接的な制限には使わない。
+      // UI側で、そもそも霧の中のマスをクリックできないようにするなどの制御が考えられる。
+      // もし、UIで見えていないマスには移動できない、というルールにするなら以下のチェックも必要。
+      // if (!visibleSquares.has(`${currentRow}-${currentCol}`)) break;
+
 
       const pieceAtTarget = boardState[currentRow][currentCol];
-      if (pieceAtTarget) {
+      if (pieceAtTarget) { // 何か駒がある
         if (pieceAtTarget.color !== color) { // 敵の駒
-          moves.push(targetSquarePos); // 取れる
+          // 敵の駒を取る場合も、そのマスが自身の視界内である必要がある (上記 isSquareDirectlyVisibleByPiece でチェック済み)
+          moves.push(targetSquarePos);
         }
         break; // 自分の駒か敵の駒にぶつかったら、その方向は終了
-      } else {
-        moves.push(targetSquarePos); // 空きマス
+      } else { // 空きマス
+        moves.push(targetSquarePos);
       }
     }
   }
   return moves;
 }
 
-/**
- * ナイトの合法な移動先を取得
- * @param {object} knight - ナイトの駒オブジェクト
- * @param {Array<Array<object|null>>} boardState - 現在の盤面
- * @returns {Array<{row: number, col: number}>}
- */
-export function getKnightMoves(knight, boardState) {
+export function getRookMoves(rook, boardState, visibleSquares) {
+  const directions = [
+    { dr: -1, dc: 0 }, { dr: 1, dc: 0 }, { dr: 0, dc: -1 }, { dr: 0, dc: 1 },
+  ];
+  return getSlidingPieceMoves(rook, boardState, directions, visibleSquares);
+}
+
+export function getBishopMoves(bishop, boardState, visibleSquares) {
+  const directions = [
+    { dr: -1, dc: -1 }, { dr: -1, dc: 1 }, { dr: 1, dc: -1 }, { dr: 1, dc: 1 },
+  ];
+  return getSlidingPieceMoves(bishop, boardState, directions, visibleSquares);
+}
+
+export function getQueenMoves(queen, boardState, visibleSquares) {
+  const directions = [
+    { dr: -1, dc: 0 }, { dr: 1, dc: 0 }, { dr: 0, dc: -1 }, { dr: 0, dc: 1 },
+    { dr: -1, dc: -1 }, { dr: -1, dc: 1 }, { dr: 1, dc: -1 }, { dr: 1, dc: 1 },
+  ];
+  return getSlidingPieceMoves(queen, boardState, directions, visibleSquares);
+}
+
+export function getKnightMoves(knight, boardState, visibleSquares) {
     const moves = [];
     const { row: startRow, col: startCol } = knight.position;
     const color = knight.color;
 
     const knightMoveOffsets = [
-        { dr: -2, dc: -1 }, { dr: -2, dc: 1 },
-        { dr: -1, dc: -2 }, { dr: -1, dc: 2 },
-        { dr: 1, dc: -2 }, { dr: 1, dc: 2 },
-        { dr: 2, dc: -1 }, { dr: 2, dc: 1 },
+        { dr: -2, dc: -1 }, { dr: -2, dc: 1 }, { dr: -1, dc: -2 }, { dr: -1, dc: 2 },
+        { dr: 1, dc: -2 },  { dr: 1, dc: 2 },  { dr: 2, dc: -1 },  { dr: 2, dc: 1 },
     ];
 
     for (const { dr, dc } of knightMoveOffsets) {
@@ -334,108 +315,17 @@ export function getKnightMoves(knight, boardState) {
         const targetSquarePos = {row: targetRow, col: targetCol};
 
         if (isWithinBoard(targetRow, targetCol) &&
-            isSquareInPieceFOV(targetSquarePos, knight) &&
-            canOccupySquare(targetRow, targetCol, color, boardState)) {
+            canOccupySquare(targetRow, targetCol, color, boardState) &&
+            isSquareDirectlyVisibleByPiece(targetSquarePos, knight) // ★ルール: 移動先は自身の視界内
+            // visibleSquares.has(`${targetRow}-${targetCol}`) // UI上の霧の考慮 (任意)
+            ) {
             moves.push(targetSquarePos);
         }
     }
     return moves;
 }
 
-/**
- * ビショップの合法な移動先を取得
- * @param {object} bishop - ビショップの駒オブジェクト
- * @param {Array<Array<object|null>>} boardState - 現在の盤面
- * @returns {Array<{row: number, col: number}>}
- */
-export function getBishopMoves(bishop, boardState) {
-  const moves = [];
-  const { row: startRow, col: startCol } = bishop.position;
-  const color = bishop.color;
-
-  const directions = [
-    { dr: -1, dc: -1 }, // 左上
-    { dr: -1, dc: 1 },  // 右上
-    { dr: 1, dc: -1 },  // 左下
-    { dr: 1, dc: 1 },   // 右下
-  ];
-
-  for (const { dr, dc } of directions) {
-    for (let i = 1; i < BOARD_SIZE; i++) {
-      const currentRow = startRow + dr * i;
-      const currentCol = startCol + dc * i;
-
-      if (!isWithinBoard(currentRow, currentCol)) break;
-
-      const targetSquarePos = { row: currentRow, col: currentCol };
-      if (!isSquareInPieceFOV(targetSquarePos, bishop)) break;
-
-      const pieceAtTarget = boardState[currentRow][currentCol];
-      if (pieceAtTarget) {
-        if (pieceAtTarget.color !== color) {
-          moves.push(targetSquarePos);
-        }
-        break;
-      } else {
-        moves.push(targetSquarePos);
-      }
-    }
-  }
-  return moves;
-}
-
-/**
- * クイーンの合法な移動先を取得 (ルークとビショップの動きを組み合わせる)
- * @param {object} queen - クイーンの駒オブジェクト
- * @param {Array<Array<object|null>>} boardState - 現在の盤面
- * @returns {Array<{row: number, col: number}>}
- */
-export function getQueenMoves(queen, boardState) {
-  // ルークとしての動きとビショップとしての動きを合成
-  // ただし、視界範囲はクイーン自身のもの(PIECE_FOV_RANGES.QUEEN)を使う必要がある
-  // getRookMoves と getBishopMoves を直接呼び出すと、それぞれの駒のFOVで計算してしまうので注意
-
-  const moves = [];
-  const { row: startRow, col: startCol } = queen.position;
-  const color = queen.color;
-
-  const directions = [
-    { dr: -1, dc: 0 }, { dr: 1, dc: 0 }, { dr: 0, dc: -1 }, { dr: 0, dc: 1 }, // Rook directions
-    { dr: -1, dc: -1 }, { dr: -1, dc: 1 }, { dr: 1, dc: -1 }, { dr: 1, dc: 1 }  // Bishop directions
-  ];
-
-  for (const { dr, dc } of directions) {
-    for (let i = 1; i < BOARD_SIZE; i++) {
-      const currentRow = startRow + dr * i;
-      const currentCol = startCol + dc * i;
-
-      if (!isWithinBoard(currentRow, currentCol)) break;
-
-      const targetSquarePos = { row: currentRow, col: currentCol };
-      // クイーン自身の視界で判定
-      if (!isSquareInPieceFOV(targetSquarePos, queen)) break;
-
-      const pieceAtTarget = boardState[currentRow][currentCol];
-      if (pieceAtTarget) {
-        if (pieceAtTarget.color !== color) {
-          moves.push(targetSquarePos);
-        }
-        break;
-      } else {
-        moves.push(targetSquarePos);
-      }
-    }
-  }
-  return moves;
-}
-
-/**
- * キングの合法な移動先を取得
- * @param {object} king - キングの駒オブジェクト
- * @param {Array<Array<object|null>>} boardState - 現在の盤面
- * @returns {Array<{row: number, col: number}>}
- */
-export function getKingMoves(king, boardState) {
+export function getKingMoves(king, boardState, visibleSquares) {
   const moves = [];
   const { row: startRow, col: startCol } = king.position;
   const color = king.color;
@@ -443,7 +333,7 @@ export function getKingMoves(king, boardState) {
   const kingMoveOffsets = [
     { dr: -1, dc: -1 }, { dr: -1, dc: 0 }, { dr: -1, dc: 1 },
     { dr: 0, dc: -1 },                     { dr: 0, dc: 1 },
-    { dr: 1, dc: -1 }, { dr: 1, dc: 0 }, { dr: 1, dc: 1 },
+    { dr: 1, dc: -1 },  { dr: 1, dc: 0 },  { dr: 1, dc: 1 },
   ];
 
   for (const { dr, dc } of kingMoveOffsets) {
@@ -452,19 +342,14 @@ export function getKingMoves(king, boardState) {
     const targetSquarePos = {row: targetRow, col: targetCol};
 
     if (isWithinBoard(targetRow, targetCol) &&
-        isSquareInPieceFOV(targetSquarePos, king) &&
-        canOccupySquare(targetRow, targetCol, color, boardState)
-        // 自殺手OKなので、相手の攻撃範囲かどうかはチェックしない
+        canOccupySquare(targetRow, targetCol, color, boardState) &&
+        isSquareDirectlyVisibleByPiece(targetSquarePos, king) // ★ルール: 移動先は自身の視界内
+        // visibleSquares.has(`${targetRow}-${targetCol}`) // UI上の霧の考慮 (任意)
         ) {
       moves.push(targetSquarePos);
     }
   }
-
-  // TODO: キャスリング (視界ルールとキャスリングの組み合わせを定義する必要あり)
-  // キングが動いていない、ルークが動いていない、間が空いている、通過マスが攻撃されていない etc.
-  // 通過マスが「自軍の誰かから見えている」必要があるか？
-  // 現時点では省略。
-
+  // キャスリングは未実装
   return moves;
 }
 
@@ -474,39 +359,68 @@ export function getKingMoves(king, boardState) {
  * @param {object} piece - 駒オブジェクト
  * @param {Array<Array<object|null>>} boardState - 現在の盤面
  * @param {object} [lastMove=null] - 直前の相手の動き (アンパッサン用)
+ * @param {Set<string>} visibleSquares - 現在のプレイヤーが見えるマスのセット (App.jsxから渡される)
+ * @param {string} viewingPlayerColor - 現在視点を持っているプレイヤーの色 (App.jsxから渡される playerColor)
  * @returns {Array<{row: number, col: number}>}
  */
-export function getLegalMovesForPiece(piece, boardState, lastMove = null) {
+export function getLegalMovesForPiece(piece, boardState, lastMove = null, visibleSquares, viewingPlayerColor) {
   if (!piece) return [];
+  // visibleSquares と viewingPlayerColor は、各駒の移動関数に渡して利用する
+  // (ただし、現在のルールでは主に駒自身のfovRangeで移動制限をかけるため、
+  //  visibleSquares (UIの霧) は移動の直接的な制限には使っていない)
 
   switch (piece.type) {
     case PIECE_TYPES.PAWN:
-      return getPawnMoves(piece, boardState, lastMove);
+      return getPawnMoves(piece, boardState, lastMove, visibleSquares);
     case PIECE_TYPES.ROOK:
-      return getRookMoves(piece, boardState);
+      return getRookMoves(piece, boardState, visibleSquares);
     case PIECE_TYPES.KNIGHT:
-      return getKnightMoves(piece, boardState);
+      return getKnightMoves(piece, boardState, visibleSquares);
     case PIECE_TYPES.BISHOP:
-      return getBishopMoves(piece, boardState);
+      return getBishopMoves(piece, boardState, visibleSquares);
     case PIECE_TYPES.QUEEN:
-      return getQueenMoves(piece, boardState);
+      return getQueenMoves(piece, boardState, visibleSquares);
     case PIECE_TYPES.KING:
-      return getKingMoves(piece, boardState);
+      return getKingMoves(piece, boardState, visibleSquares);
     default:
       return [];
   }
-  // 自殺手OK、チェック判定なしなので、これ以上のフィルターは不要
 }
 
-/**
- * ゲームが終了したかどうかを判定 (キングが取られたら)
- * @param {Array<Array<object|null>>} boardState
- * @returns {string|null} 'white_wins', 'black_wins', or null
- */
+// applyMove, checkGameOver は変更なし
+export function applyMove(board, pieceToMove, toPos, promotionPieceType = null) {
+    const newBoard = board.map(row => row.slice());
+    const { row: fromRow, col: fromCol } = pieceToMove.position;
+    let movedPiece = { ...pieceToMove, position: toPos, hasMoved: true };
+
+    if (movedPiece.type === PIECE_TYPES.PAWN) {
+        if ((movedPiece.color === COLORS.WHITE && toPos.row === 0) ||
+            (movedPiece.color === COLORS.BLACK && toPos.row === BOARD_SIZE - 1)) {
+            if (promotionPieceType && PIECE_FOV_RANGES[promotionPieceType] !== undefined) { // 昇格先が有効か確認
+                movedPiece.type = promotionPieceType;
+                movedPiece.fovRange = PIECE_FOV_RANGES[promotionPieceType];
+            } else {
+                movedPiece.type = PIECE_TYPES.QUEEN; // デフォルトはクイーン
+                movedPiece.fovRange = PIECE_FOV_RANGES[PIECE_TYPES.QUEEN];
+            }
+        }
+    }
+    if (pieceToMove.type === PIECE_TYPES.PAWN &&
+        toPos.col !== fromCol &&
+        !newBoard[toPos.row][toPos.col]
+       ) {
+        const capturedPawnRow = fromRow;
+        const capturedPawnCol = toPos.col;
+        newBoard[capturedPawnRow][capturedPawnCol] = null;
+    }
+    newBoard[fromRow][fromCol] = null;
+    newBoard[toPos.row][toPos.col] = movedPiece;
+    return newBoard;
+}
+
 export function checkGameOver(boardState) {
     let whiteKingFound = false;
     let blackKingFound = false;
-
     for (let r = 0; r < BOARD_SIZE; r++) {
         for (let c = 0; c < BOARD_SIZE; c++) {
             const piece = boardState[r][c];
@@ -516,106 +430,7 @@ export function checkGameOver(boardState) {
             }
         }
     }
-
-    if (!whiteKingFound) return `${COLORS.BLACK}_wins`; // 白キングがいない -> 黒の勝ち
-    if (!blackKingFound) return `${COLORS.WHITE}_wins`; // 黒キングがいない -> 白の勝ち
-    return null; // ゲーム続行
-}
-
-/**
- * 手を盤面に適用する
- * @param {Array<Array<object|null>>} board - 現在の盤面 (ディープコピーされたものを渡す想定)
- * @param {object} pieceToMove - 移動する駒
- * @param {{row: number, col: number}} toPos - 移動先の座標
- * @param {string|null} [promotionPieceType=null] - ポーンの昇格先の駒タイプ (例: PIECE_TYPES.QUEEN)
- * @returns {Array<Array<object|null>>} 更新された盤面
- */
-export function applyMove(board, pieceToMove, toPos, promotionPieceType = null) {
-    const newBoard = board.map(row => row.slice()); //簡易的なディープコピー
-    const { row: fromRow, col: fromCol } = pieceToMove.position;
-
-    let movedPiece = { ...pieceToMove, position: toPos, hasMoved: true };
-
-    // ポーンの昇格
-    if (movedPiece.type === PIECE_TYPES.PAWN) {
-        if ((movedPiece.color === COLORS.WHITE && toPos.row === 0) ||
-            (movedPiece.color === COLORS.BLACK && toPos.row === BOARD_SIZE - 1)) {
-            if (promotionPieceType) {
-                movedPiece.type = promotionPieceType;
-                movedPiece.fovRange = PIECE_FOV_RANGES[promotionPieceType];
-                // シンボルなどはUI側で対応
-            } else {
-                // UI側で昇格先を選択させる想定。ここではデフォルトでクイーンにするか、エラー。
-                // もしくは、この関数呼び出し前に昇格先を確定させる。
-                // 例としてクイーンに昇格
-                movedPiece.type = PIECE_TYPES.QUEEN;
-                movedPiece.fovRange = PIECE_FOV_RANGES[PIECE_TYPES.QUEEN];
-            }
-        }
-    }
-    
-    // アンパッサンでの駒の除去
-    if (pieceToMove.type === PIECE_TYPES.PAWN &&
-        toPos.col !== fromCol && // 斜めに移動し
-        !newBoard[toPos.row][toPos.col] // かつ移動先が空マス (アンパッサンの特徴)
-       ) {
-        const capturedPawnRow = fromRow; // 取られるポーンは元のポーンと同じ行にいる
-        const capturedPawnCol = toPos.col; // 取られるポーンは移動先の列にいる
-        newBoard[capturedPawnRow][capturedPawnCol] = null;
-    }
-
-
-    newBoard[fromRow][fromCol] = null;
-    newBoard[toPos.row][toPos.col] = movedPiece;
-
-    return newBoard;
-}
-
-/**
- * 指定された駒から見て、指定されたマスが見えるかどうか (遮蔽なし)
- * @param {{row: number, col: number}} targetSquarePos - 対象のマスの座標
- * @param {object} observingPiece - 観測している駒オブジェクト
- * @returns {boolean}
- */
-export function isSquareDirectlyVisibleByPiece(targetSquarePos, observingPiece) {
-  if (!observingPiece || !observingPiece.position) return false; // observingPieceやそのpositionがない場合は見えない
-  const { row: pieceRow, col: pieceCol } = observingPiece.position;
-  const range = observingPiece.fovRange;
-
-  const dr = Math.abs(targetSquarePos.row - pieceRow);
-  const dc = Math.abs(targetSquarePos.col - pieceCol);
-
-  return isWithinBoard(targetSquarePos.row, targetSquarePos.col) && Math.max(dr, dc) <= range;
-}
-
-/**
- * 指定されたプレイヤーが見える全てのマスの座標セットを取得 (遮蔽なし)
- * @param {Array<Array<object|null>>} boardState - 現在の盤面
- * @param {string} viewingPlayerColor - 視点となるプレイヤーの色
- * @returns {Set<string>} 見えるマスの座標セット (例: "row-col" の文字列形式)
- */
-export function getVisibleSquaresForPlayer(boardState, viewingPlayerColor) {
-  const visibleSet = new Set();
-  if (!viewingPlayerColor) return visibleSet; // プレイヤーカラーがない場合は空セット
-
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
-      const piece = boardState[r][c];
-      if (piece && piece.color === viewingPlayerColor) { // 自分の駒の位置は必ず見える
-        visibleSet.add(`${r}-${c}`); // 自分の駒のいるマス
-        // 自分の駒からの視界
-        for (let tr = 0; tr < BOARD_SIZE; tr++) {
-          for (let tc = 0; tc < BOARD_SIZE; tc++) {
-            if (isSquareDirectlyVisibleByPiece({ row: tr, col: tc }, piece)) {
-              visibleSet.add(`${tr}-${tc}`);
-            }
-          }
-        }
-      }
-    }
-  }
-  // 盤面全体のマスを一度追加し、自分の駒のいないマスで、どの自駒からも見えないマスを後でフィルタリングする方が
-  // 効率的かもしれないし、このままでも良い。
-  // 現状は、自分の駒がいるマスと、自分の駒から見える範囲のマスをリストアップしている。
-  return visibleSet;
+    if (!whiteKingFound) return `${COLORS.BLACK}_wins`;
+    if (!blackKingFound) return `${COLORS.WHITE}_wins`;
+    return null;
 }
