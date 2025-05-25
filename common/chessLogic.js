@@ -184,7 +184,7 @@ export function getPawnMoves(pawn, boardState, lastMove = null, visibleSquares) 
         isWithinBoard(twoStepsForward.row, twoStepsForward.col) &&
         !boardState[twoStepsForward.row][twoStepsForward.col] && // 2マス先が空
         !boardState[oneStepForward.row][oneStepForward.col]      // 1マス先も空 (経路)
-        // isSquareDirectlyVisibleByPiece(twoStepsForward, pawn) // ★この視界チェックは特例で不要とする
+         //isSquareDirectlyVisibleByPiece(twoStepsForward, pawn) // ★この視界チェックは特例で不要とする
       ) {
         moves.push(twoStepsForward);
       }
